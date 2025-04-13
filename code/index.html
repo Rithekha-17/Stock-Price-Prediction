@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock 1 Prediction</title>
+
+    <!-- Bootstrap CDN -->
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <style>
+        body {
+            background-color: #f8f9fa;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+        nav, footer {
+            background-color: #343a40;
+            color: white;
+            text-align: center;
+            padding: 10px;
+        }
+        footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+        }
+        #loader {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+        }
+        .result-card {
+            margin-top: 20px;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .metrics-card {
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            max-width: 600px;
+            margin: 20px auto;
+            text-align: center;
+        }
+        .container {
+            flex: 1;
+            padding-bottom: 100px; /* give space above fixed footer */
+        }
+    </style>
+</head>
+
+<body>
+
+<nav>
+    <h3>Stock 1 Prediction App</h3>
+</nav>
+
+<div class="container mt-4">
+    <h4>Enter Stock Prices</h4>
+    <div class="form-row">
+        <div class="col"><input type="text" id="stock2" class="form-control" placeholder="Stock 2"></div>
+        <div class="col"><input type="text" id="stock3" class="form-control" placeholder="Stock 3"></div>
+        <div class="col"><input type="text" id="stock4" class="form-control" placeholder="Stock 4"></div>
+        <div class="col"><input type="text" id="stock5" class="form-control" placeholder="Stock 5"></div>
+    </div>
+
+    <button class="btn btn-primary mt-3" onclick="predictStock1()">Predict Stock 1</button>
+    <button class="btn btn-secondary mt-3 ml-2" onclick="resetForm()">Clear</button>
+
+    <div id="loader">
+        <div class="spinner-border text-primary" role="status"></div>
+        <p>Predicting...</p>
+    </div>
+
+    <div id="result"></div>
+    <canvas id="predictionChart" class="mt-4" style="display:none;"></canvas>
+
+    <!-- Model & Metrics Section -->
+    <div id="metrics" class="mt-4" style="display:none;">
+        <div class="card metrics-card">
+            <div class="card-body">
+                <h5 class="card-title">Model & Performance</h5>
+                <p class="card-text"><strong>Model Used:</strong> <span id="modelName"></span></p>
+                <p class="card-text"><strong>Mean Squared Error (MSE):</strong> <span id="mseValue"></span></p>
+                <p class="card-text"><strong>R² Score:</strong> <span id="r2Value"></span></p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<footer>
+    &copy; 2025 PRS | All Rights Reserved
+</footer>
+
+<script>
+    async function predictStock1() {
+        if (!validateInput()) return;
+
+        document.getElementById('loader').style.display = 'block';
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('predictionChart').style.display = 'none';
+        document.getElementById('metrics').style.display = 'none';
+
+        const stock2 = parseFloat(document.getElementById('stock2').value);
+        const stock3 = parseFloat(document.getElementById('stock3').value);
+        const stock4 = parseFloat(document.getElementById('stock4').value);
+        const stock5 = parseFloat(document.getElementById('stock5').value);
+
+        try {
+            const response = await fetch('http://localhost:5000/predict', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ stock2, stock3, stock4, stock5 })
+            });
+
+            if (!response.ok) throw new Error('Prediction failed');
+
+            const data = await response.json();
+            const prediction = data.prediction;
+
+            document.getElementById('loader').style.display = 'none';
+
+            // Show line chart
+            showLineChart(stock2, stock3, stock4, stock5, prediction);
+
+            // Show predicted result
+            document.getElementById('result').innerHTML = `
+                <div class="result-card">
+                    <h4>Predicted Stock 1 Price:</h4>
+                    <h2>₹ ${prediction.toFixed(2)}</h2>
+                </div>
+            `;
+
+            // Display metrics
+            document.getElementById('modelName').textContent = data.model;
+            document.getElementById('mseValue').textContent = data.mse;
+            document.getElementById('r2Value').textContent = data.r2;
+            document.getElementById('metrics').style.display = 'block';
+
+        } catch (error) {
+            document.getElementById('loader').style.display = 'none';
+            alert('Error fetching prediction: ' + error);
+        }
+    }
+
+    function showLineChart(s2, s3, s4, s5, prediction) {
+        const ctx = document.getElementById('predictionChart').getContext('2d');
+        document.getElementById('predictionChart').style.display = 'block';
+
+        if (window.myChart) window.myChart.destroy();
+
+        window.myChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: ['Stock 2', 'Stock 3', 'Stock 4', 'Stock 5', 'Predicted Stock 1'],
+                datasets: [{
+                    label: 'Stock Prices',
+                    data: [s2, s3, s4, s5, prediction],
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                    fill: true,
+                    tension: 0.4,
+                    pointBackgroundColor: '#007bff',
+                    pointRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        beginAtZero: false,
+                        title: {
+                            display: true,
+                            text: 'Price (₹)'
+                        }
+                    },
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Stock/Prediction'
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    function resetForm() {
+        document.querySelectorAll('input').forEach(input => input.value = '');
+        document.getElementById('result').innerHTML = '';
+        document.getElementById('predictionChart').style.display = 'none';
+        document.getElementById('metrics').style.display = 'none';
+        if (window.myChart) window.myChart.destroy();
+    }
+
+    function validateInput() {
+        const inputs = ['stock2', 'stock3', 'stock4', 'stock5'];
+        for (let id of inputs) {
+            const value = document.getElementById(id).value;
+            if (!value || isNaN(value)) {
+                alert(`Please enter a valid number for ${id}`);
+                return false;
+            }
+        }
+        return true;
+    }
+</script>
+
+</body>
+</html>
